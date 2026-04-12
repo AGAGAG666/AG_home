@@ -1,0 +1,44 @@
+name: Sync to Test Repo (Preserve app/blog, public/blog, and root *.md)
+
+on:
+  push:
+    branches: [ main ]   # 如果你的默认分支是 master，请修改
+
+jobs:
+  sync:
+    if: github.repository == 'AGAGAG666/AG_home'   # 仅在你自己的主仓库运行
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repo
+        uses: actions/checkout@v4
+        with:
+          path: main-repo    # 修正缩进
+
+      - name: Checkout test repo
+        uses: actions/checkout@v4
+        with:
+          repository: AGAGAG666/AG_home_test
+          token: ${{ secrets.test }}   # 确保这个 secret 已经配置
+          path: test-repo
+
+      - name: Sync (preserve app/blog, public/blog, and root *.md)
+        run: |
+          rsync -av --delete \
+            --exclude='.git' \
+            --exclude='app/blog/' \
+            --exclude='public/blog/' \
+            --exclude='/*.md' \
+            main-repo/ test-repo/
+
+      - name: Commit and push to test repo
+        run: |
+          cd test-repo
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "Auto-sync from main repo: ${{ github.sha }}"
+            git push origin main
+          else
+            echo "No changes to sync"
+          fi
