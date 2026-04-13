@@ -49,10 +49,6 @@ pnpm run dev
 
 详见 [安装和使用指南](./INSTALLATION.md)
 
-## 关于原仓库介绍
-
-[原仓库](https://github.com/xiaomuahua666/nprofile.git)
-
 
 ### 🚀 快速开始
 
