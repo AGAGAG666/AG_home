@@ -25,9 +25,10 @@ jobs:
         run: |
           rsync -av --delete \
             --exclude='.git' \
-            --exclude='app/blog/' \
+            --exclude='app/blog/*.md' \
             --exclude='public/blog/' \
             --exclude='/*.md' \
+            --exclude='.github/workflows/' \
             main-repo/ test-repo/
 
       - name: Commit and push to test repo
