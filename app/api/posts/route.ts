@@ -22,6 +22,9 @@ export async function GET() {
         slug,
         title: data.title || slug,
         description: data.description || '暂无描述',
+        date: data.date || null,
+        cover: data.cover || null,
+        tags: data.tags || [],
       }
     })
   // 按 slug 排序（可按需改为按日期）

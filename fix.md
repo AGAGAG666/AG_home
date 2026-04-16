@@ -1,5 +1,117 @@
 # 修复日志
 
+## 2026-04-16: 图片查看器移动端布局与交互优化
+
+### 🐛 问题修复
+
+#### 1. Next.js Server Component 事件处理器错误
+**文件**: `app/blog/[slug]/page.tsx`, `components/ImageViewer.tsx`, `components/MarkdownContent.tsx`
+
+**问题**: 
+- 报错: "Event handlers cannot be passed to Client Component props"
+- 在 Server Component 中直接使用 `onClick` 事件处理器
+- ReactMarkdown 自定义组件返回带事件的 JSX 元素
+
+**原因**: 
+- Next.js Server Component 不能直接包含事件处理器（onClick、onChange 等）
+- 将交互逻辑写在 Server Component 中违反了 React/Next.js 规范
+
+**修复方案**:
+- **提取 Client Components**:
+  - `MarkdownContent.tsx`: 封装 ReactMarkdown 及图片点击逻辑
+  - `ImageViewer.tsx`: 独立的图片查看器模态框
+- **Server Component 简化**: 仅负责数据读取和静态内容渲染
+- **通信机制**: 使用 `window.dispatchEvent` + `CustomEvent` 实现跨组件通信
+
+```typescript
+// ✅ 正确：Client Component 处理交互
+'use client'
+export function MarkdownContent({ content }) {
+  return <ReactMarkdown components={{ img: ({ src }) => <img onClick={...} /> }} />
+}
+
+// ✅ 正确：Server Component 仅渲染
+export default async function BlogPost() {
+  return <MarkdownContent content={content} />
+}
+```
+
+---
+
+#### 2. 移动端图片查看器布局错位
+**文件**: `components/ImageViewer.tsx`
+
+**问题**: 
+- 移动端图片组件全部下移，锁定到页面最底部
+- 半透明背景未完全覆盖视口，出现空白边缘
+
+**原因**: 
+- `<dialog>` 元素有默认的 margin 和 padding
+- 内部容器高度未明确设置为 100%，导致 flex 居中失效
+
+**修复方案**:
+``tsx
+// 修复前
+className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
+
+// 修复后
+className="fixed inset-0 z-50 m-0 w-full h-full bg-black/80 backdrop-blur-sm p-0"
+```
+- 添加 `m-0 p-0`: 重置默认边距和内边距
+- 添加 `w-full h-full`: 强制占满整个视口
+- 内部容器保持 `flex items-center justify-center` 实现真正居中
+
+---
+
+#### 3. 桌面端按钮被图片覆盖
+**文件**: `components/ImageViewer.tsx`
+
+**问题**: 
+- 图片放大后可能覆盖右上角的控制按钮
+- 按钮使用 `absolute` 定位在相对容器内
+
+**修复方案**:
+``tsx
+// 修复前
+<div className="absolute right-4 top-4 ...">
+
+// 修复后
+<div className="fixed right-4 top-4 z-[60] ...">
+```
+- 改为 `position: fixed`: 固定在视口而非容器
+- 提升 `z-index: 60`: 确保始终在最上层
+- 无论图片如何缩放/移动，按钮始终可见
+
+---
+
+#### 4. TypeScript 类型错误
+**文件**: `components/ImageViewer.tsx`
+
+**问题**: 
+- 报错: "WebkitUserDrag is not in type Properties"
+- 使用了非标准的 CSS 属性
+
+**修复方案**:
+- 移除 `WebkitUserDrag: 'none'`
+- 保留 HTML 属性 `draggable={false}` 实现相同效果
+
+---
+
+### ✨ 功能增强
+
+#### 移动端触摸优化
+- **双指缩放**: 阻止页面滚动冲突 (`e.preventDefault()` + `touch-none`)
+- **单指拖动**: 放大后可平移查看细节
+- **防误触**: `userSelect: 'none'` 禁止选中文本
+- **平滑体验**: 拖动时无过渡延迟，仅重置时启用动画
+
+#### 状态管理优化
+- 新增 `position` 状态记录平移偏移量
+- 使用 `useRef` 存储临时触摸数据，避免不必要的重渲染
+- 打开新图片时自动重置缩放和平移状态
+
+---
+
 ## 2026-04-11: Vercel 构建错误修复
 
 ### React Hooks 条件调用错误修复 (Vercel 构建)

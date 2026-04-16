@@ -87,12 +87,74 @@ export const SOCIAL_LINKS: SocialLink[] = [
 ---
 title: 文章标题
 description: 简短描述
+date: 2026-04-16
+cover: /blog/your-image.jpg
+tags: ["标签1", "标签2"]
 ---
 
 # 正文（Markdown 格式）
 ```
 
-调调整样式以及文字渐入:修改`globals.css`
+**Frontmatter 字段说明：**
+- `title`: 文章标题（必填）
+- `description`: 文章描述，用于列表展示和搜索（必填）
+- `date`: 发布日期，格式 YYYY-MM-DD，用于归档视图排序
+- `cover`: 封面图片路径，相对于 `public` 目录，用于列表视图显示
+- `tags`: 标签数组，用于标签视图筛选和搜索
+
+#### 博客三视图
+
+**1. 列表视图**
+- 完整卡片网格布局
+- 显示封面图、标题、描述
+- 支持分页（默认每页 5 篇）
+- 配置位置：`components/BlogModalContentClient.tsx`
+  ```typescript
+  const POSTS_PER_PAGE = 5  // 修改每页显示数量
+  ```
+
+**2. 归档视图**
+- 时间线布局
+- 按年 → 月 → 日层级分组
+- 年份醒目显示
+- 无分页，显示所有文章
+
+**3. 标签视图**
+- 显示所有唯一标签
+- 单篇文章的标签不显示数字，多篇显示纯数字（如 `Cloudflare 3`）
+- 点击标签筛选出该标签下的所有文章
+- 再次点击取消筛选
+- 提供"清除筛选"按钮
+
+#### 图片功能
+
+**在文章内添加图片引用**
+把图片移动到(`./public/blog/`)
+并在文章引用的图片链接写为(./blog/你的图片文件)
+
+**图片放大查看器**
+- **触发方式**: 点击文章内任意图片即可放大查看
+- **桌面端操作**:
+  - 键盘 `+` / `-` 键：放大/缩小
+  - 右上角 +/- 按钮：控制缩放
+  - ESC 键或点击背景：关闭查看器
+- **移动端操作**:
+  - 双指捏合手势：缩放图片（20% ~ 500%）
+  - 单指拖动：平移查看细节（放大后可用）
+  - 点击背景：关闭查看器
+- **UI 特性**:
+  - 半透明黑色背景完全覆盖视口
+  - 图片居中显示，自适应尺寸
+  - 左上角实时显示缩放百分比
+  - 控制按钮固定在右上角，不被图片覆盖
+  - Dark/Light 主题自适应
+
+**技术实现**:
+- Server Component (`app/blog/[slug]/page.tsx`): 负责数据读取
+- Client Components:
+  - `MarkdownContent.tsx`: Markdown 渲染及图片点击交互
+  - `ImageViewer.tsx`: 图片查看器模态框
+- 通信机制: `window.dispatchEvent` + `CustomEvent`
 
 ### 修改博客列表淡出淡入以及速度
 
@@ -111,7 +173,7 @@ const POSTS_PER_PAGE = 5  // 修改此值改变每页显示数量
 ```
 
 **博客页面** (`app/blog/layout.tsx`):
-```typescript
+```
 <Link
   href="/"
   onClick={() => {
