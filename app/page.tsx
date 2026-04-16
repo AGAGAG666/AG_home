@@ -196,10 +196,10 @@ export default function Personal() {
         <div className="flex flex-col-reverse gap-4 md:flex-row md:gap-8 md:items-start">
           <div className="flex-1">
             <p className="text-sm md:text-base text-zinc-600 dark:text-zinc-400 leading-relaxed">
-              一只喜欢听歌和玩游戏的小可爱，偶尔琢磨一些有趣的小东西呢～ ( ´▽`) <br/>
-              热爱交流，与你互动时会竭尽温柔 (˃ ᗝ ˂) <br/>
+              一只喜欢听歌和玩游戏的小可爱，偶尔琢磨一些有趣的小东西呢～ <br/>
+              ( ´▽`)
+              热爱交流，与你互动时会竭尽温柔 <br/>
               甜食爱好者，绝对讨厌苦苦的味道！！！ (´；ω；`) <br/>
-              欢迎来一起探索有趣的想法吧！✨ ( ´▽` )
             </p>
           </div>
 
