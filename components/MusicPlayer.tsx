@@ -211,7 +211,7 @@ export function MusicPlayer() {
     }
   }, [tracks]); // 依赖tracks，在tracks加载后执行
 
-  // 从文件名提取作者名称（格式：歌曲名__作者名）
+  // 从文件名提取作者名称(格式:歌曲名__作者名)
   const extractAuthor = (filename: string): string | undefined => {
     const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
     const parts = nameWithoutExt.split('__');
@@ -219,6 +219,29 @@ export function MusicPlayer() {
       return parts[parts.length - 1].trim();
     }
     return undefined;
+  };
+
+  // 从文件名提取纯歌曲名(去掉__作者名部分)
+  const extractSongName = (filename: string): string => {
+    const nameWithoutExt = filename.replace(/\.[^/.]+$/, '');
+    const parts = nameWithoutExt.split('__');
+    if (parts.length >= 2) {
+      return parts.slice(0, -1).join('__').trim();
+    }
+    return nameWithoutExt.trim();
+  };
+
+  // 从URL中提取原始文件名
+  const getOriginalFilenameFromUrl = (url: string): string => {
+    try {
+      const pathname = new URL(url, window.location.origin).pathname;
+      const parts = pathname.split('/');
+      const filename = parts[parts.length - 1];
+      // URL解码
+      return decodeURIComponent(filename);
+    } catch {
+      return url;
+    }
   };
 
   // 验证服务器音乐文件是否存在
@@ -243,7 +266,19 @@ export function MusicPlayer() {
         return true; // 保留非服务器文件
       });
       
-      return validTracks;
+      // 重新提取歌曲名和作者名(从URL中获取原始文件名)
+      return validTracks.map(track => {
+        // 对于服务器文件,从URL重新提取原始文件名
+        if (track.isServerFile || track.url.startsWith('/music/')) {
+          const originalFilename = getOriginalFilenameFromUrl(track.url);
+          return {
+            ...track,
+            name: extractSongName(originalFilename),
+            author: extractAuthor(originalFilename)
+          };
+        }
+        return track;
+      });
     } catch {
       return savedTracks; // 验证失败时保留原列表
     }
@@ -261,6 +296,7 @@ export function MusicPlayer() {
           const existingUrls = new Set(prevTracks.map(t => t.url));
           const newTracks = data.tracks.map((t: Track) => ({
             ...t,
+            name: extractSongName(t.name),
             author: extractAuthor(t.name)
           })).filter((t: Track) => !existingUrls.has(t.url));
           return [...prevTracks, ...newTracks];
