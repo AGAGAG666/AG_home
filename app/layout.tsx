@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   title: {
-    default: 'AG home',
+    default: 'AG的家',
     template: '%s | AG',
   },
   description: 'AG的自述页面，或许…还夹带了点小玩意？',
