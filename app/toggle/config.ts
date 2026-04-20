@@ -9,6 +9,6 @@ export const CONFIG = {
   show2FAPage: false,
   
   // 音乐播放器开关 (true=启用, false=禁用)
-  showMusicPlayer: false,
+  showMusicPlayer: true,
 } as const;
 // ============================================

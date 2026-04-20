@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, Shuffle, Repeat, Repeat1, Music } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Shuffle, Repeat, Repeat1, Music, VolumeX, Volume2 } from 'lucide-react';
 import { Magnetic } from '@/components/ui/magnetic';
 
 interface Track {
@@ -17,6 +17,48 @@ type PlayMode = 'sequence' | 'shuffle' | 'loopAll' | 'loopOne';
 
 // 全局音频管理器 - 确保只有一个audio实例
 let globalAudio: HTMLAudioElement | null = null;
+
+// 从 localStorage 初始化全局状态（仅客户端）
+function initGlobalState() {
+  // 在服务端渲染时返回默认值
+  if (typeof window === 'undefined') {
+    return {
+      isPlaying: false,
+      currentTrackIndex: -1,
+      volume: 0.7,
+      isMuted: false,
+    };
+  }
+  
+  const savedIndex = localStorage.getItem('localMusicCurrentIndex');
+  const savedVolume = localStorage.getItem('localMusicVolume');
+  
+  let currentIndex = -1;
+  if (savedIndex !== null) {
+    const index = parseInt(savedIndex);
+    if (!isNaN(index) && index >= 0) {
+      currentIndex = index;
+    }
+  }
+  
+  let volume = 0.7;
+  if (savedVolume !== null) {
+    const vol = parseFloat(savedVolume);
+    if (!isNaN(vol) && vol >= 0 && vol <= 1) {
+      volume = vol;
+    }
+  }
+  
+  return {
+    isPlaying: false,
+    currentTrackIndex: currentIndex,
+    volume: volume,
+    isMuted: false,
+  };
+}
+
+// 全局状态追踪
+let globalState = initGlobalState();
 
 function getGlobalAudio(): HTMLAudioElement {
   if (!globalAudio) {
@@ -88,11 +130,86 @@ export function MusicPlayer() {
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressRef = useRef<HTMLInputElement>(null);
+  const prevTrackIndexRef = useRef<number>(-1);
 
-  // 初始化全局audio引用
+  // 初始化全局audio引用并同步全局状态（只在组件挂载时执行一次）
   useEffect(() => {
-    audioRef.current = getGlobalAudio();
-  }, []);
+    const audio = getGlobalAudio();
+    audioRef.current = audio;
+    
+    // 立即读取当前音频状态
+    setCurrentTime(audio.currentTime || 0);
+    if (audio.duration && !isNaN(audio.duration)) {
+      setDuration(audio.duration);
+    }
+    
+    // 同步播放状态
+    if (!audio.paused) {
+      setIsPlaying(true);
+      globalState.isPlaying = true;
+    } else {
+      setIsPlaying(globalState.isPlaying);
+    }
+    
+    // 同步更新 prevTrackIndexRef
+    if (globalState.currentTrackIndex >= 0) {
+      prevTrackIndexRef.current = globalState.currentTrackIndex;
+    }
+  }, []); // 空依赖，只执行一次
+  
+  // 当 tracks 加载完成后，检查是否需要恢复音频源
+  useEffect(() => {
+    if (tracks.length === 0) return;
+    
+    const audio = audioRef.current;
+    if (!audio) return;
+    
+    // 从localStorage读取保存的状态
+    const savedIndex = localStorage.getItem('localMusicCurrentIndex');
+    const savedIsPlaying = localStorage.getItem('localMusicIsPlaying');
+    const savedCurrentTime = localStorage.getItem('localMusicCurrentTime');
+    
+    // 如果音频没有src或readyState为0，且localStorage有保存的状态
+    if ((!audio.src || audio.readyState === 0) && savedIndex !== null) {
+      const index = parseInt(savedIndex);
+      if (!isNaN(index) && index >= 0 && index < tracks.length) {
+        // 设置音频源
+        audio.src = tracks[index].url;
+        audio.load();
+        
+        // 等待元数据加载后恢复进度
+        const handleLoadedMetadata = () => {
+          setDuration(audio.duration);
+          
+          // 恢复进度
+          if (savedCurrentTime !== null) {
+            const time = parseFloat(savedCurrentTime);
+            if (!isNaN(time) && time >= 0 && time < audio.duration) {
+              audio.currentTime = time;
+              setCurrentTime(time);
+            }
+          }
+          
+          // 如果之前在播放，继续播放
+          if (savedIsPlaying === 'true') {
+            audio.play().catch(() => {
+              setIsPlaying(false);
+            });
+            setIsPlaying(true);
+            globalState.isPlaying = true;
+          }
+          
+          audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        };
+        
+        audio.addEventListener('loadedmetadata', handleLoadedMetadata, { once: true });
+        
+        // 更新索引
+        setCurrentTrackIndex(index);
+        prevTrackIndexRef.current = index;
+      }
+    }
+  }, [tracks]); // 依赖tracks，在tracks加载后执行
 
   // 从文件名提取作者名称（格式：歌曲名__作者名）
   const extractAuthor = (filename: string): string | undefined => {
@@ -126,15 +243,8 @@ export function MusicPlayer() {
         return true; // 保留非服务器文件
       });
       
-      // 如果有文件被删除，记录日志
-      const removedCount = savedTracks.length - validTracks.length;
-      if (removedCount > 0) {
-        console.log(`Removed ${removedCount} unavailable server tracks`);
-      }
-      
       return validTracks;
     } catch (error) {
-      console.error('Failed to validate server tracks:', error);
       return savedTracks; // 验证失败时保留原列表
     }
   };
@@ -157,7 +267,7 @@ export function MusicPlayer() {
         });
       }
     } catch (error) {
-      console.error('Failed to load server music files:', error);
+      // Ignore error
     } finally {
       setIsLoadingServerFiles(false);
     }
@@ -176,6 +286,7 @@ export function MusicPlayer() {
       if (savedTracks) {
         try {
           const parsedTracks = JSON.parse(savedTracks);
+          
           // 验证服务器文件是否存在
           validTracks = await validateServerTracks(parsedTracks);
           
@@ -184,13 +295,17 @@ export function MusicPlayer() {
             localStorage.setItem('localMusicTracks', JSON.stringify(validTracks));
           }
           
-          setTracks(validTracks);
+          // 直接更新，不做比较（因为初始化时tracks是空数组）
+          if (validTracks.length > 0) {
+            setTracks(validTracks);
+          }
         } catch (e) {
-          console.error('Failed to parse saved tracks:', e);
+          // 解析保存的播放列表失败
         }
       }
 
-      if (savedIndex !== null) {
+      // 只有当全局状态没有有效的播放索引时，才从 localStorage 恢复
+      if (globalState.currentTrackIndex < 0 && savedIndex !== null) {
         const index = parseInt(savedIndex);
         if (!isNaN(index)) {
           // 确保索引在有效范围内
@@ -202,7 +317,8 @@ export function MusicPlayer() {
         }
       }
 
-      if (savedVolume !== null) {
+      // 只有当全局状态没有有效的音量时，才从 localStorage 恢复
+      if (globalState.volume === 0.7 && savedVolume !== null) {
         const vol = parseFloat(savedVolume);
         if (!isNaN(vol) && vol >= 0 && vol <= 1) {
           setVolume(vol);
@@ -213,8 +329,10 @@ export function MusicPlayer() {
         setPlayMode(savedPlayMode as PlayMode);
       }
 
-      // 自动加载服务器音乐文件
-      await loadServerMusicFiles();
+      // 只有当播放列表为空时，才加载服务器音乐文件
+      if (validTracks.length === 0) {
+        await loadServerMusicFiles();
+      }
     };
 
     loadSavedState();
@@ -240,13 +358,17 @@ export function MusicPlayer() {
     localStorage.setItem('localMusicPlayMode', playMode);
   }, [playMode]);
 
-  // 音频元素事件处理
+  // 音频元素事件处理 - 独立于其他状态，确保始终监听
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
+      // 每5秒保存一次进度，避免频繁写入
+      if (Math.floor(audio.currentTime) % 5 === 0) {
+        localStorage.setItem('localMusicCurrentTime', audio.currentTime.toString());
+      }
     };
 
     const handleLoadedMetadata = () => {
@@ -258,8 +380,8 @@ export function MusicPlayer() {
     };
 
     const handleError = (e: Event) => {
-      console.error('Audio error:', e);
-      alert('音频文件加载失败，请检查文件格式是否正确');
+      // Handle audio error silently or with a non-intrusive notification if needed
+      console.warn('Audio playback error', e);
     };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
@@ -274,33 +396,54 @@ export function MusicPlayer() {
       audio.removeEventListener('error', handleError);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tracks, currentTrackIndex, playMode]);
+  }, []); // 空依赖数组，只在组件挂载/卸载时执行
 
-  // 更新音频源
+  // 更新音频源 - 只在索引真正改变时执行
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || currentTrackIndex < 0 || !tracks[currentTrackIndex]) return;
 
-    // 加载新的音频源
-    audio.src = tracks[currentTrackIndex].url;
-    audio.load();
-    
-    // 如果需要播放，等待元数据加载完成后再播放
-    if (isPlaying) {
-      const handleCanPlay = () => {
-        audio.play().catch((err: Error) => {
-          console.error('Play failed:', err);
+    // 只有当曲目索引真正改变时才重新加载
+    if (prevTrackIndexRef.current !== currentTrackIndex) {
+      prevTrackIndexRef.current = currentTrackIndex;
+      
+      // 加载新的音频源
+      audio.src = tracks[currentTrackIndex].url;
+      audio.load();
+      
+      // 如果需要播放，等待元数据加载完成后再播放
+      if (isPlaying) {
+        const handleCanPlay = () => {
+          audio.play().catch(() => {
+            setIsPlaying(false);
+          });
+          audio.removeEventListener('canplay', handleCanPlay);
+        };
+        
+        audio.addEventListener('canplay', handleCanPlay, { once: true });
+      } else {
+        // 如果不需要播放，确保暂停
+        audio.pause();
+      }
+    } else if (isPlaying && audio.paused) {
+      // 组件重新挂载但索引未变，如果应该是播放状态但实际暂停了，则恢复播放
+      if (audio.readyState >= 2) {
+        audio.play().catch(() => {
           setIsPlaying(false);
         });
-        audio.removeEventListener('canplay', handleCanPlay);
-      };
-      
-      audio.addEventListener('canplay', handleCanPlay, { once: true });
-    } else {
-      // 如果不需要播放，确保暂停
-      audio.pause();
+      } else {
+        const handleCanPlay = () => {
+          audio.play().catch(() => {
+            setIsPlaying(false);
+          });
+          audio.removeEventListener('canplay', handleCanPlay);
+        };
+        
+        audio.addEventListener('canplay', handleCanPlay, { once: true });
+      }
     }
-  }, [currentTrackIndex, tracks, isPlaying]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTrackIndex, tracks]); // 移除 isPlaying 依赖，避免组件挂载时因状态同步触发不必要的副作用
 
   // 更新音量
   useEffect(() => {
@@ -309,6 +452,14 @@ export function MusicPlayer() {
     
     audio.volume = isMuted ? 0 : volume;
   }, [volume, isMuted]);
+
+  // 同步全局状态
+  useEffect(() => {
+    globalState.isPlaying = isPlaying;
+    globalState.currentTrackIndex = currentTrackIndex;
+    globalState.volume = volume;
+    globalState.isMuted = isMuted;
+  }, [isPlaying, currentTrackIndex, volume, isMuted]);
 
   const formatTime = (time: number) => {
     if (isNaN(time)) return '0:00';
@@ -324,20 +475,24 @@ export function MusicPlayer() {
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
+      globalState.isPlaying = false;
+      // 保存播放状态到 localStorage
+      localStorage.setItem('localMusicIsPlaying', 'false');
     } else {
       // 检查音频是否已准备好
       if (audio.readyState >= 2) {
         // HAVE_CURRENT_DATA，可以播放
-        audio.play().catch((err: Error) => {
-          console.error('Play failed:', err);
+        audio.play().catch(() => {
           setIsPlaying(false);
         });
         setIsPlaying(true);
+        globalState.isPlaying = true;
+        // 保存播放状态到 localStorage
+        localStorage.setItem('localMusicIsPlaying', 'true');
       } else {
         // 等待音频加载完成
         const handleCanPlay = () => {
-          audio.play().catch((err: Error) => {
-            console.error('Play failed:', err);
+          audio.play().catch(() => {
             setIsPlaying(false);
           });
           audio.removeEventListener('canplay', handleCanPlay);
@@ -345,6 +500,9 @@ export function MusicPlayer() {
         
         audio.addEventListener('canplay', handleCanPlay, { once: true });
         setIsPlaying(true);
+        globalState.isPlaying = true;
+        // 保存播放状态到 localStorage
+        localStorage.setItem('localMusicIsPlaying', 'true');
       }
     }
   };
@@ -573,7 +731,7 @@ export function MusicPlayer() {
         <div className="flex items-center gap-2 mb-4">
           <button
             onClick={toggleMute}
-            className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 transition-colors"
+            className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 transition-colors hidden"
           >
             {isMuted || volume === 0 ? (
               <VolumeX className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -586,9 +744,9 @@ export function MusicPlayer() {
             min="0"
             max="1"
             step="0.01"
-            value={isMuted ? 0 : volume}
+            value={1}
             onChange={handleVolumeChange}
-            className="flex-1 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+            className="flex-1 h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-blue-500 hidden"
           />
         </div>
 
