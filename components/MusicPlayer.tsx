@@ -58,7 +58,7 @@ function initGlobalState() {
 }
 
 // 全局状态追踪
-let globalState = initGlobalState();
+const globalState = initGlobalState();
 
 function getGlobalAudio(): HTMLAudioElement {
   if (!globalAudio) {
@@ -244,7 +244,7 @@ export function MusicPlayer() {
       });
       
       return validTracks;
-    } catch (error) {
+    } catch {
       return savedTracks; // 验证失败时保留原列表
     }
   };
@@ -266,7 +266,7 @@ export function MusicPlayer() {
           return [...prevTracks, ...newTracks];
         });
       }
-    } catch (error) {
+    } catch {
       // Ignore error
     } finally {
       setIsLoadingServerFiles(false);
@@ -299,7 +299,7 @@ export function MusicPlayer() {
           if (validTracks.length > 0) {
             setTracks(validTracks);
           }
-        } catch (e) {
+        } catch {
           // 解析保存的播放列表失败
         }
       }
