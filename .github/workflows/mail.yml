@@ -26,6 +26,7 @@ jobs:
           rsync -av --delete \
             --exclude='.git' \
             --exclude='app/blog/*.md' \
+            --exclude='app/toggle/config.ts' \
             --exclude='public/blog/' \
             --exclude='public/music/' \
             --exclude='/*.md' \
