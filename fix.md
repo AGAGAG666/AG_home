@@ -1,5 +1,145 @@
 # 修复日志
 
+## 2026-04-20_2: MusicPlayer TypeScript 类型安全与 Hooks 依赖修复
+
+**文件**: `components/MusicPlayer.tsx`
+
+**问题**: 
+- Vercel 构建失败,TypeScript 编译错误
+- 多处使用 `as any` 类型断言违反项目规范
+- React Hooks 依赖警告未正确处理
+
+**错误详情**:
+```
+./components/MusicPlayer.tsx
+110:47  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+118:23  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+216:6   Warning: React Hook useEffect has missing dependency: 'loadServerMusicFiles'
+270:6   Warning: React Hook useEffect has missing dependency: 'handleTrackEnd'
+296:6   Warning: React Hook useEffect has missing dependency: 'isPlaying'
+686:34  Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+```
+
+**修复方案**:
+
+### 1. 类型安全修复 (移除 `as any` 断言)
+
+**修改 Track 接口定义**:
+```typescript
+// ✅ 正确：扩展接口添加可选属性
+interface Track {
+  id: string;
+  name: string;
+  url: string;
+  duration: number;
+  author?: string;
+  isServerFile?: boolean;  // 新增：标记是否为服务器文件
+}
+```
+
+**替换所有 `as any` 断言**:
+```typescript
+// ❌ 错误：使用 any 类型断言
+return savedTracks.filter(t => !(t as any).isServerFile);
+if ((track as any).isServerFile) { ... }
+
+// ✅ 正确：使用接口定义的属性
+return savedTracks.filter(t => !t.isServerFile);
+if (track.isServerFile) { ... }
+```
+
+**涉及位置**:
+- 第110行: `validateServerTracks` 函数中的过滤逻辑
+- 第118行: `validateServerTracks` 函数中的条件判断
+- 第686行: 播放列表渲染中的服务器文件标记显示
+
+### 2. React Hooks 依赖修复
+
+**场景1: 避免循环依赖**
+```typescript
+// 从 localStorage 加载状态并验证服务器文件
+useEffect(() => {
+  const loadSavedState = async () => {
+    // ... 加载逻辑
+    await loadServerMusicFiles(); // 内部调用 setTracks
+  };
+  loadSavedState();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []); // ✅ 忽略依赖，避免无限循环（loadServerMusicFiles 内部更新 tracks）
+```
+
+**场景2: 核心状态已包含**
+```typescript
+// 音频元素事件处理
+useEffect(() => {
+  const audio = audioRef.current;
+  if (!audio) return;
+
+  const handleEnded = () => {
+    handleTrackEnd(); // 函数引用每次渲染都变化
+  };
+
+  audio.addEventListener('ended', handleEnded);
+  return () => audio.removeEventListener('ended', handleEnded);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [tracks, currentTrackIndex, playMode]); // ✅ 核心状态已在依赖数组中
+```
+
+**场景3: 补充缺失依赖**
+```typescript
+// 更新音频源
+useEffect(() => {
+  const audio = audioRef.current;
+  if (!audio || currentTrackIndex < 0 || !tracks[currentTrackIndex]) return;
+
+  audio.src = tracks[currentTrackIndex].url;
+  audio.load();
+  
+  if (isPlaying) {
+    // 等待 canplay 事件后播放
+  } else {
+    audio.pause();
+  }
+}, [currentTrackIndex, tracks, isPlaying]); // ✅ 添加 isPlaying 确保播放行为同步
+```
+
+### 3. 组件属性完善
+
+**为 MagneticButton 添加 disabled 支持**:
+```typescript
+function MagneticButton({
+  children,
+  onClick,
+  className,
+  disabled,  // ✅ 新增：支持禁用状态
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+  disabled?: boolean;
+}) {
+  // ... 实现
+  return (
+    <button onClick={onClick} className={className} disabled={disabled}>
+      {children}
+    </button>
+  );
+}
+```
+
+**效果**:
+- ✅ 消除所有 TypeScript 类型错误
+- ✅ 正确处理 React Hooks 依赖警告
+- ✅ 符合项目类型安全规范
+- ✅ Vercel 构建成功通过
+
+**遵循规范**:
+- 禁止使用 `any` 类型 → 扩展 Interface 定义
+- Hooks 依赖警告 → 添加注释说明原因（循环依赖/稳定引用/性能优化）
+- 变量定义顺序 → 确保使用前已声明
+
+---
+
 ## 2026-04-20: 音乐播放器全局播放与缓存清理优化
 
 #### 1. 关闭模态框后音乐停止播放

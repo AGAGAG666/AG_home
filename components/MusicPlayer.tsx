@@ -10,6 +10,7 @@ interface Track {
   url: string;
   duration: number;
   author?: string;
+  isServerFile?: boolean;
 }
 
 type PlayMode = 'sequence' | 'shuffle' | 'loopAll' | 'loopOne';
@@ -29,10 +30,12 @@ function MagneticButton({
   children,
   onClick,
   className,
+  disabled,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   className?: string;
+  disabled?: boolean;
 }) {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -51,6 +54,7 @@ function MagneticButton({
       <button
         onClick={onClick}
         className={className}
+        disabled={disabled}
       >
         {children}
       </button>
@@ -62,6 +66,7 @@ function MagneticButton({
       <button
         onClick={onClick}
         className={className}
+        disabled={disabled}
       >
         {children}
       </button>
@@ -106,8 +111,8 @@ export function MusicPlayer() {
       const data = await response.json();
       
       if (!data.tracks || data.tracks.length === 0) {
-        // 如果服务器没有音乐文件，删除所有标记为服务器的轨道
-        return savedTracks.filter(t => !(t as any).isServerFile);
+        // 如果服务器没有音乐文件,删除所有标记为服务器的轨道
+        return savedTracks.filter(t => !t.isServerFile);
       }
       
       // 获取服务器上存在的URL列表
@@ -115,7 +120,7 @@ export function MusicPlayer() {
       
       // 过滤掉已不存在的服务器文件
       const validTracks = savedTracks.filter(track => {
-        if ((track as any).isServerFile) {
+        if (track.isServerFile) {
           return serverUrls.has(track.url);
         }
         return true; // 保留非服务器文件
@@ -213,6 +218,7 @@ export function MusicPlayer() {
     };
 
     loadSavedState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 保存播放列表到 localStorage
@@ -267,6 +273,7 @@ export function MusicPlayer() {
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks, currentTrackIndex, playMode]);
 
   // 更新音频源
@@ -293,7 +300,7 @@ export function MusicPlayer() {
       // 如果不需要播放，确保暂停
       audio.pause();
     }
-  }, [currentTrackIndex, tracks]);
+  }, [currentTrackIndex, tracks, isPlaying]);
 
   // 更新音量
   useEffect(() => {
@@ -683,7 +690,7 @@ export function MusicPlayer() {
                       }`}>
                         {track.name}
                       </p>
-                      {(track as any).isServerFile && (
+                      {track.isServerFile && (
                         <span className="text-xs px-1.5 py-0.5 bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400 rounded shrink-0">
                           服务器
                         </span>
