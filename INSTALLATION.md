@@ -50,17 +50,6 @@ pnpm run dev
 
 编辑 `app/data.ts`：
 
-```typescript
-export const EMAIL = 'your@email.com'
-
-export const SOCIAL_LINKS: SocialLink[] = [
-  {
-    label: 'Github',
-    link: 'https://github.com/your-username',
-  },
-  // 更多社交链接...
-]
-```
 
 ### 更改网页标题和描述以及颜色
 
@@ -102,9 +91,8 @@ tags: ["标签1", "标签2"]
 - `cover`: 封面图片路径，相对于 `public` 目录，用于列表视图显示
 - `tags`: 标签数组，用于标签视图筛选和搜索
 
-#### 博客三视图
+#### 博客视图
 
-**1. 列表视图**
 - 完整卡片网格布局
 - 显示封面图、标题、描述
 - 支持分页（默认每页 5 篇）
@@ -113,22 +101,9 @@ tags: ["标签1", "标签2"]
   const POSTS_PER_PAGE = 5  // 修改每页显示数量
   ```
 
-**2. 归档视图**
-- 时间线布局
-- 按年 → 月 → 日层级分组
-- 年份醒目显示
-- 无分页，显示所有文章
-
-**3. 标签视图**
-- 显示所有唯一标签
-- 单篇文章的标签不显示数字，多篇显示纯数字（如 `Cloudflare 3`）
-- 点击标签筛选出该标签下的所有文章
-- 再次点击取消筛选
-- 提供"清除筛选"按钮
-
 #### 图片功能
 
-**在文章内添加图片引用**
+**在文章添加图片引用**
 把图片移动到(`./public/blog/`)
 并在文章引用的图片链接写为(./blog/你的图片文件)
 
@@ -266,8 +241,8 @@ className="... bg-gradient-to-r from-blue-600 to-blue-400 ..."
 
 编辑进度条动画持续时间：
 
-```typescript
-// components/ui/loading-screen.tsx
+```
+components/ui/loading-screen.tsx
 const duration = 800; // 修改此值改变加载时长(毫秒)
 ```
 
@@ -275,7 +250,7 @@ const duration = 800; // 修改此值改变加载时长(毫秒)
 
 编辑渐变色配置：
 
-```typescript
+```
 background: 'linear-gradient(90deg, #1e40af, #3b82f6, #60a5fa, #3b82f6, #1e40af)'
 ```
 
@@ -285,7 +260,7 @@ background: 'linear-gradient(90deg, #1e40af, #3b82f6, #60a5fa, #3b82f6, #1e40af)
 
 修改响应式容器宽度：
 
-```typescript
+```
 className="w-[320px] sm:w-[360px] md:w-[400px] ..."
 ```
 
@@ -305,79 +280,33 @@ export default function Personal() {
 }
 ```
 
-### 配置返回时跳过加载动画
 
-当用户从 2FA 或博客页面返回主页时,可以配置是否显示加载动画。
+## 音乐播放器功能
 
-#### 工作原理
+### 功能概述
 
-系统使用双重检测机制:
+内置本地音乐播放器，支持播放服务器上的音频文件，具备全局播放、智能缓存清理等功能。
 
-1. **站内链接点击**: 通过 `sessionStorage` 标记
-2. **浏览器返回/手势/快捷键**: 通过 Performance Navigation Timing API
+### 启用/禁用音乐播放器
 
-#### 修改检测逻辑
+编辑 `app/toggle/config.ts`：
 
-编辑 `app/page.tsx` 中的检测代码:
+**生效方式**：保存后刷新页面即可，无需重启服务器。
 
-```typescript
-// 方法1: sessionStorage 标记 (站内链接点击)
-const skipLoading = sessionStorage.getItem('skipLoadingAnimation');
+### 添加音乐
 
-if (skipLoading === 'true') {
-  sessionStorage.removeItem('skipLoadingAnimation');
-  setIsLoading(false); // 跳过动画
-  return;
-}
+复制音频文件`public/music/` 目录：
 
-// 方法2: Performance Navigation Timing API (浏览器返回)
-const navigationEntries = performance.getEntriesByType('navigation');
+**支持的格式**：`.mp3`, `.wav`, `.ogg`, `.flac`, `.m4a`, `.aac`
 
-if (navigationEntries.length > 0) {
-  const nav = navigationEntries[0] as PerformanceNavigationTiming;
-  
-  if (nav.type === 'back_forward') {
-    const referrer = document.referrer;
-    // 修改这里的路径判断条件
-    if (referrer.includes('/2fa') || referrer.includes('/blog')) {
-      setIsLoading(false); // 跳过动画
-      return;
-    }
-  }
-}
-```
+### 作者名称自动提取
 
-**可修改的检测路径**:
-``typescript
-// 只检测 2FA 页面
-if (referrer.includes('/2fa')) { ... }
+**命名规则**：在文件名中使用 `__`（双下划线）分隔歌曲名和作者名
 
-// 只检测博客页面
-if (referrer.includes('/blog')) { ... }
-
-// 检测多个页面
-if (referrer.includes('/2fa') || referrer.includes('/blog') || referrer.includes('/about')) { ... }
-
-// 禁用此功能(始终显示加载动画)
-// 注释掉整个检测逻辑即可
-```
-
-#### 修改返回按钮行为
-
-如果需要修改哪些页面的返回按钮触发跳过动画:
-
-**2FA 页面** (`app/2fa/page.tsx`):
-```typescript
-<Link
-  href="/"
-  onClick={() => {
-    // 注释掉这行来禁用跳过动画
-    sessionStorage.setItem('skipLoadingAnimation', 'true');
-  }}
->
-  ← 返回
-</Link>
-```
+**示例**：
+- `歌曲A__Bm.mp3` → 显示为：歌曲A，作者 Bm
+- `音乐__张三.wav` → 显示为：音乐，作者 张三
+- `纯音乐.mp3` → 无作者信息
 
 ## 构建和部署
 

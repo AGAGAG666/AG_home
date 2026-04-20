@@ -1,5 +1,257 @@
 # 修复日志
 
+## 2026-04-20: 音乐播放器全局播放与缓存清理优化
+
+#### 1. 关闭模态框后音乐停止播放
+**文件**: `components/MusicPlayer.tsx`
+
+**问题**: 
+- 用户关闭音乐播放器模态框后，音乐立即停止
+- 每次打开/关闭模态框都需要重新加载音频
+- 用户体验差，无法后台播放
+
+**原因**: 
+- `<audio>` 元素作为 JSX 的一部分渲染在组件内
+- 模态框关闭 → MusicPlayer 组件卸载 → audio 元素销毁 → 播放中断
+
+**修复方案**:
+- **模块级单例模式**: 创建全局音频管理器，独立于组件生命周期
+- **懒加载工厂函数**: 首次使用时创建 Audio 实例，之后复用
+
+```typescript
+// ✅ 正确：模块级单例
+let globalAudio: HTMLAudioElement | null = null;
+
+function getGlobalAudio(): HTMLAudioElement {
+  if (!globalAudio) {
+    globalAudio = new Audio();
+    globalAudio.preload = 'metadata';
+  }
+  return globalAudio;
+}
+
+export function MusicPlayer() {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  useEffect(() => {
+    audioRef.current = getGlobalAudio(); // 使用全局实例
+  }, []);
+  
+  return (
+    <div>
+      {/* ❌ 移除内联 <audio> 元素 */}
+      {/* 播放器 UI... */}
+    </div>
+  );
+}
+```
+
+**效果**:
+- ✅ 关闭模态框 → 音乐继续播放
+- ✅ 再次打开模态框 → 看到相同播放状态
+- ✅ 多个标签页共享同一音频实例（如果实现）
+
+---
+
+#### 2. 服务器删除文件后缓存未清理
+**文件**: `components/MusicPlayer.tsx`, `app/api/music/route.ts`
+
+**问题**: 
+- 管理员从服务器删除 `song2.mp3`
+- 用户A之前访问过，localStorage 中仍保存该文件记录
+- 用户A刷新页面后，播放列表显示 `song2.mp3` 但无法播放
+- 控制台报错：`GET /music/song2.mp3 404 (Not Found)`
+
+**原因**: 
+- localStorage 缓存了完整的播放列表（包括服务器文件 URL）
+- 页面加载时直接使用缓存，未验证文件是否仍存在
+- 缺少服务端状态同步机制
+
+**修复方案**:
+- **异步验证机制**: 页面加载时调用 `/api/music` 获取当前存在的文件
+- **智能过滤**: 对比缓存与服务端，删除已不存在的文件记录
+- **索引调整**: 确保 currentTrackIndex 在有效范围内
+
+```typescript
+const validateServerTracks = async (savedTracks: Track[]): Promise<Track[]> => {
+  try {
+    const response = await fetch('/api/music');
+    const data = await response.json();
+    
+    if (!data.tracks || data.tracks.length === 0) {
+      // 服务器无文件，删除所有服务器轨道
+      return savedTracks.filter(t => !(t as any).isServerFile);
+    }
+    
+    // 获取服务器上存在的 URL 集合
+    const serverUrls = new Set(data.tracks.map((t: Track) => t.url));
+    
+    // 过滤掉已不存在的服务器文件
+    const validTracks = savedTracks.filter(track => {
+      if ((track as any).isServerFile) {
+        return serverUrls.has(track.url); // 只保留仍存在的
+      }
+      return true; // 保留非服务器文件
+    });
+    
+    // 记录清理数量
+    const removedCount = savedTracks.length - validTracks.length;
+    if (removedCount > 0) {
+      console.log(`Removed ${removedCount} unavailable server tracks`);
+    }
+    
+    return validTracks;
+  } catch (error) {
+    console.error('Failed to validate server tracks:', error);
+    return savedTracks; // 验证失败时保留原列表
+  }
+};
+
+// 初始化流程
+useEffect(() => {
+  const loadSavedState = async () => {
+    const savedTracks = localStorage.getItem('localMusicTracks');
+    
+    if (savedTracks) {
+      const parsedTracks = JSON.parse(savedTracks);
+      // 验证并清理无效缓存
+      const validTracks = await validateServerTracks(parsedTracks);
+      
+      // 如果有变化，更新 localStorage
+      if (validTracks.length !== parsedTracks.length) {
+        localStorage.setItem('localMusicTracks', JSON.stringify(validTracks));
+      }
+      
+      setTracks(validTracks);
+    }
+    
+    // 确保索引有效
+    if (savedIndex !== null) {
+      const index = parseInt(savedIndex);
+      if (!isNaN(index) && index < validTracks.length) {
+        setCurrentTrackIndex(index);
+      } else {
+        setCurrentTrackIndex(-1); // 重置
+      }
+    }
+    
+    // 加载新文件
+    await loadServerMusicFiles();
+  };
+  
+  loadSavedState();
+}, []);
+```
+
+**效果**:
+- ✅ 管理员删除 `song2.mp3`
+- ✅ 用户A刷新页面
+- ✅ 自动检测并移除 `song2.mp3` 缓存
+- ✅ 播放列表仅显示存在的文件
+- ✅ 控制台输出：`Removed 1 unavailable server tracks`
+
+---
+
+#### 3. AbortError: play() request interrupted by pause()
+**文件**: `components/MusicPlayer.tsx`
+
+**问题**: 
+- 快速切换歌曲时浏览器报错
+- 错误信息：`AbortError: The play() request was interrupted by a call to pause()`
+- 导致播放状态异常，isPlaying 与实际不符
+
+**原因**: 
+- 切换歌曲时，useEffect 先调用 `pause()` 停止当前播放
+- 然后立即调用 `play()` 播放新歌曲
+- 但此时音频可能还在加载中，`pause()` 和 `play()` 产生竞态条件
+
+**修复方案**:
+- **事件驱动播放**: 使用 `canplay` 事件监听器，确保音频准备好后再播放
+- **状态检查**: togglePlay 中检查 `readyState`，决定直接播放或等待加载
+
+```typescript
+// ✅ 正确：更新音频源时使用 canplay 事件
+useEffect(() => {
+  const audio = audioRef.current;
+  if (!audio || currentTrackIndex < 0 || !tracks[currentTrackIndex]) return;
+
+  // 加载新的音频源
+  audio.src = tracks[currentTrackIndex].url;
+  audio.load();
+  
+  // 如果需要播放，等待元数据加载完成后再播放
+  if (isPlaying) {
+    const handleCanPlay = () => {
+      audio.play().catch((err: Error) => {
+        console.error('Play failed:', err);
+        setIsPlaying(false);
+      });
+      audio.removeEventListener('canplay', handleCanPlay);
+    };
+    
+    audio.addEventListener('canplay', handleCanPlay, { once: true });
+  } else {
+    // 如果不需要播放，确保暂停
+    audio.pause();
+  }
+}, [currentTrackIndex, tracks]);
+
+// ✅ 正确：togglePlay 中检查就绪状态
+const togglePlay = () => {
+  const audio = audioRef.current;
+  if (!audio || currentTrackIndex < 0) return;
+
+  if (isPlaying) {
+    audio.pause();
+    setIsPlaying(false);
+  } else {
+    // 检查音频是否已准备好
+    if (audio.readyState >= 2) {
+      // HAVE_CURRENT_DATA，可以播放
+      audio.play().catch((err: Error) => {
+        console.error('Play failed:', err);
+        setIsPlaying(false);
+      });
+      setIsPlaying(true);
+    } else {
+      // 等待音频加载完成
+      const handleCanPlay = () => {
+        audio.play().catch((err: Error) => {
+          console.error('Play failed:', err);
+          setIsPlaying(false);
+        });
+        audio.removeEventListener('canplay', handleCanPlay);
+      };
+      
+      audio.addEventListener('canplay', handleCanPlay, { once: true });
+      setIsPlaying(true);
+    }
+  }
+};
+```
+
+**HTML5 Audio readyState 说明**:
+- `0` - HAVE_NOTHING：没有音频信息
+- `1` - HAVE_METADATA：已获取元数据
+- `2` - HAVE_CURRENT_DATA：有当前帧数据（可播放）
+- `3` - HAVE_FUTURE_DATA：有未来几帧数据
+- `4` - HAVE_ENOUGH_DATA：有足够数据流畅播放
+
+**效果**:
+- ✅ 快速切换歌曲不再报错
+- ✅ 快速点击播放/暂停按钮稳定
+- ✅ 网络较慢时自动等待缓冲完成
+- ✅ 播放状态与实际一致
+
+---
+
+**效果**:
+- ✅ 集中式配置管理
+- ✅ 保存后刷新即生效，无需重启
+- ✅ 禁用时完全不渲染，不占用 DOM 空间
+
+---
+
 ## 2026-04-16: 图片查看器移动端布局与交互优化
 
 ### 🐛 问题修复

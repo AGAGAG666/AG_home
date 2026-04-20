@@ -40,7 +40,7 @@ pnpm run dev
 在浏览器中打开 [localhost:3000](http://localhost:3000/) 查看效果
 在浏览器打开[loveag.dpdns.org](https:loveag.dpdns.org)预览
 
-## 不想要2fa系统和进入动画？
+## 不想要某些设置？
 
 详见 [开关配置](./app/toggle/config.ts)
 

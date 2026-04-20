@@ -1,5 +1,158 @@
 # 更新日志
 
+## 2026-04-20: 音乐播放器功能完整实现
+
+### ✨ 新增功能
+
+#### 1. 本地音乐播放器系统
+- **核心组件**: `components/MusicPlayer.tsx`
+- **API 路由**: `app/api/music/route.ts` - 自动读取 `public/music/` 目录
+- **支持的格式**: `.mp3`, `.wav`, `.ogg`, `.flac`, `.m4a`, `.aac`
+
+**播放控制**:
+- 播放/暂停、上一首/下一首、停止
+- 可拖动进度条调节播放位置
+- 音量滑块 + 静音切换
+- 单一按钮循环切换四种播放模式：
+  - 顺序播放 → 随机播放 → 列表循环 → 单曲循环
+
+**UI 特性**:
+- 当前播放信息（歌曲名、作者、时长）
+- 播放列表显示/隐藏切换
+- 当前播放项高亮 + 动画指示器
+- 响应式设计，适配移动端和桌面端
+
+**作者名称提取**:
+- 从文件名 `__`（双下划线）后自动提取作者
+- 示例：`歌曲A__Bm.mp3` → 作者 `Bm`
+- 显示位置：当前播放区 + 播放列表项第二行
+
+---
+
+#### 2. 全局播放功能
+- **技术实现**: 模块级单例音频管理器
+- **核心优势**: 关闭模态框后音乐继续播放，不受组件卸载影响
+- **生命周期**: 音频实例独立于 UI 组件，整个应用共享同一实例
+
+```typescript
+// 全局音频管理器
+let globalAudio: HTMLAudioElement | null = null;
+
+function getGlobalAudio(): HTMLAudioElement {
+  if (!globalAudio) {
+    globalAudio = new Audio();
+    globalAudio.preload = 'metadata';
+  }
+  return globalAudio;
+}
+```
+
+---
+
+#### 3. 智能缓存清理
+- **问题场景**: 服务器删除文件后，用户缓存中仍存在无效记录
+- **解决方案**: 页面加载时验证服务器文件存在性
+- **工作流程**:
+  1. 读取 localStorage 缓存的播放列表
+  2. 调用 `/api/music` 获取当前存在的文件
+  3. 对比 URL，过滤掉已不存在的服务器文件
+  4. 自动更新 localStorage 和播放状态
+  5. 调整 currentTrackIndex（防止索引越界）
+
+**效果**:
+- ✅ 管理员删除 `song2.mp3`
+- ✅ 用户刷新页面
+- ✅ `song2.mp3` 自动从播放列表移除
+- ✅ 不会显示无法播放的歌曲
+
+---
+
+#### 4. AbortError 修复
+- **问题**: `The play() request was interrupted by a call to pause()`
+- **原因**: 快速切换歌曲时，`pause()` 和 `play()` 产生竞态条件
+- **解决方案**: 使用 `canplay` 事件监听器，确保音频准备好后再播放
+
+```typescript
+// 优化后的播放逻辑
+if (isPlaying) {
+  const handleCanPlay = () => {
+    audio.play().catch((err: Error) => {
+      console.error('Play failed:', err);
+      setIsPlaying(false);
+    });
+    audio.removeEventListener('canplay', handleCanPlay);
+  };
+  
+  audio.addEventListener('canplay', handleCanPlay, { once: true });
+}
+```
+
+---
+
+#### 5. 功能开关配置
+- **配置文件**: `app/toggle/config.ts`
+- **配置项**: `showMusicPlayer: true/false`
+- **生效方式**: 保存后刷新页面即可，无需重启服务器
+
+**使用方法**:
+```typescript
+export const CONFIG = {
+  showLoadingAnimation: false,
+  show2FAPAPage: false,
+  showMusicPlayer: true,  // 修改此值控制音乐播放器显示
+} as const;
+```
+
+---
+
+### 🔧 技术实现
+
+#### 架构设计
+- **Server Component** (`app/api/music/route.ts`): 读取文件系统，返回 JSON
+- **Client Components**:
+  - `MusicPlayer.tsx`: 主播放器组件，包含所有交互逻辑
+  - `page.tsx`: 集成播放器入口和模态框
+
+#### 关键技术点
+- **模块级单例**: 全局音频实例，避免组件卸载导致播放中断
+- **异步验证**: `async/await` 确保缓存清理完成后再加载新文件
+- **事件驱动**: `canplay` 事件解决竞态条件
+- **状态持久化**: localStorage 保存播放列表、索引、音量、模式
+- **条件渲染**: 根据配置动态显示/隐藏播放器入口
+
+#### 数据流
+```
+页面加载
+  ↓
+读取 localStorage 缓存
+  ↓
+验证服务器文件存在性 (/api/music)
+  ↓
+过滤无效缓存，更新 localStorage
+  ↓
+加载新文件到播放列表
+  ↓
+恢复播放状态（索引、音量、模式）
+  ↓
+用户可以操作播放器
+```
+
+---
+
+### 📁 文件清单
+
+**新增文件**:
+- `components/MusicPlayer.tsx` - 播放器组件
+- `app/api/music/route.ts` - 音乐文件 API
+- `public/music/` - 音频文件存放目录
+
+**修改文件**:
+- `app/page.tsx` - 添加播放器入口按钮和模态框
+- `app/toggle/config.ts` - 添加 `showMusicPlayer` 配置项
+- `INSTALLATION.md` - 添加音乐播放器使用说明
+
+---
+
 ## 2026-04-16: 博客更新 - 标签视图与图片查看器
 
 ### ✨ 新增功能

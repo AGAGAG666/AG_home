@@ -27,6 +27,7 @@ jobs:
             --exclude='.git' \
             --exclude='app/blog/*.md' \
             --exclude='public/blog/' \
+            --exclude='public/music/' \
             --exclude='/*.md' \
             --exclude='.github/workflows/' \
             main-repo/ test-repo/
