@@ -35,7 +35,7 @@ export const PROJECTS: Project[] = [
   },
   {
     name: 'MikuTap',
-    link: 'https://mikutap.loveag.dpdns.org',
+    link: 'https://mikutap.171320.xyz/',
   },
   {
     name: '卡网',
