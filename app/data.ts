@@ -16,11 +16,7 @@ type Blog = {
 export const SOCIAL_LINKS: SocialLink[] = [
   {
     label: 'Telegram',
-    link: 'https://t.me/EC_520',
-  },
-  {
-    label: 'Telegram2',
-    link: 'https://t.me/AGAGAG666',
+    link: 'https://t.me/ECMML',
   },
   {
     label: 'Discord',
