@@ -16,7 +16,7 @@ type Blog = {
 export const SOCIAL_LINKS: SocialLink[] = [
   {
     label: 'Telegram',
-    link: 'https://t.me/ECMML',
+    link: 'https://t.me/EC520_bot',
   },
   {
     label: 'Discord',
@@ -51,7 +51,7 @@ export const EMAIL = 'ag520@loveag.dpdns.org'
 
 export const BLOGS: Blog[] = [
   {
-    name: '博客',
+    name: '文章',
     link: '#',
   },
 ]
