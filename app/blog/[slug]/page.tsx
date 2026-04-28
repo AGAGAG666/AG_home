@@ -10,8 +10,9 @@ interface BlogPostProps {
 
 export default async function BlogPost({ params }: BlogPostProps) {
   const { slug } = await params
+  const decodedSlug = decodeURIComponent(slug)
   const blogDir = path.join(process.cwd(), 'app/blog')
-  const filePath = path.join(blogDir, `${slug}.md`)
+  const filePath = path.join(blogDir, `${decodedSlug}.md`)
 
   if (!fs.existsSync(filePath)) {
     return <div>文章不存在: {slug}</div>

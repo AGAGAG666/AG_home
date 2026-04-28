@@ -1,6 +1,85 @@
 # 更新日志
 
+## 2026-04-27: 博客独立页面与配置重构
+
+### ✨ 新增功能
+
+#### 1. 博客独立页面
+- **新增路由**: `app/blog/page.tsx` — 独立博客列表页，路径 `/blog`
+- **入口自适应**: 根据 `blogDisplayMode` 配置决定主页博客按钮行为
+  - `'page'` 模式：Link 跳转到 `/blog`
+  - `'floating'` 模式：MagneticButton 打开弹窗
+- **动画效果**: TextEffect 逐字淡入标题 "随便写写" + motion 逐段淡入动画
+- **Header 隐藏**: 在 `/blog` 路径下自动隐藏导航栏
+- **返回按钮增强**: 根据当前页面和配置智能调整位置与链接
+  - 博客列表页：右上角（`right-4 top-24`），小尺寸
+  - 文章详情页：左上角（`left-4 top-32`），小尺寸
+  - 详情页返回目标：`blogDisplayMode === 'page'` → `/blog`，否则 → `/`
+
+#### 2. 新增配置项 `blogDisplayMode`
+- **配置文件**: `app/toggle/config.ts`
+- **类型定义**: `'floating' | 'page'`
+- **配置结构重构**: 从 `as const` 改为带显式类型的 `export const CONFIG: { ... } = { ... }`
+
+### 🎨 UI 优化
+
+#### SimpleModal 布局重构
+- **弹性布局**: `flex flex-col` 替换固定高度
+- **独立滚动**: 内容区 `<div className="min-h-0 flex-1 overflow-auto">`，标题栏不受影响
+- **效果**: 弹窗标题始终可见，内容过长时内容区单独滚动
+
+#### 博客网格固定单列
+- 网格显式声明 `grid grid-cols-1 gap-4`，确保始终单列显示
+
+#### 行内代码深色主题修复
+- 背景改为灰色，文字粉色
+- 移除反引号伪元素，避免视觉重叠
+
+#### 博客页面间距调整
+- `<main>` 上边距从 `mt-24` 缩为 `mt-16`
+- 页面整体更紧凑
+
+### 🔧 技术实现
+
+#### 配置感知架构
+```
+blogDisplayMode: 'page'
+  ├── 主页按钮 → <Link href="/blog"> (React Router)
+  ├── Header → pathname === '/blog' 时返回 null
+  └── 详情页返回 → <Link href="/blog">
+
+blogDisplayMode: 'floating'
+  ├── 主页按钮 → MagneticButton → open modal
+  ├── Header → 正常显示
+  └── 详情页返回 → <Link href="/">
+```
+
+#### 关键代码模式
+- **条件渲染**: 使用 `usePathname()` 和配置值决定渲染路径
+- **Link vs 按钮**: 根据配置选择 `<Link>` 或 `<MagneticButton>`
+- **模式切换**: 修改 `config.ts` 后刷新页面立即生效，无需重启
+
+### 📁 文件清单
+
+**新增文件**:
+- `app/blog/page.tsx` — 博客列表独立页面
+
+**修改文件**:
+- `app/toggle/config.ts` — 添加 `blogDisplayMode`，重构类型定义
+- `app/page.tsx` — 博客按钮根据配置条件渲染
+- `app/header.tsx` — 在 `/blog` 路径隐藏
+- `app/blog/layout.tsx` — 返回按钮位置/链接自适应
+- `app/blog/[slug]/page.tsx` — 配合布局调整
+- `components/ui/simple-modal.tsx` — flex 布局重构
+- `components/BlogModalContentClient.tsx` — 显式 `grid-cols-1`
+- `app/toggle/README.md` — 更新配置文档
+- `INSTALLATION.md` — 更新配置示例
+
+---
+
 ## 2026-04-20: 音乐播放器功能完整实现
+
+...（以下内容不变）
 
 ### ✨ 新增功能
 

@@ -1,8 +1,14 @@
 'use client'
 import { TextEffect } from '@/components/ui/text-effect'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 export function Header() {
+  const pathname = usePathname()
+
+  // 博客列表独立页面不显示站点标题
+  if (pathname === '/blog') return null
+
   return (
     <header className="mb-6 flex items-center justify-between md:mb-8">
       <div>

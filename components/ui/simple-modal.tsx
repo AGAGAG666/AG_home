@@ -41,11 +41,13 @@ export function SimpleModal({
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
             className={cn(
-              'relative max-h-[80vh] max-w-[90vw] overflow-auto rounded-lg bg-white p-6 shadow-lg dark:bg-zinc-900',
+              'relative flex max-h-[80vh] max-w-[90vw] flex-col rounded-lg bg-white p-6 shadow-lg dark:bg-zinc-900',
               className,
             )}
           >
-            {children}
+            <div className="min-h-0 flex-1 overflow-auto">
+              {children}
+            </div>
             <button
               onClick={onClose}
               className="absolute right-2 top-2 text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"

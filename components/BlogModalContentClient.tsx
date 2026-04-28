@@ -215,7 +215,7 @@ export function BlogModalContentClient() {
       {/* 列表视图 */}
       {viewMode === 'list' && (
         <>
-          <div className="grid gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {paginatedPosts.map((post) => (
               <article
                 key={post.slug}

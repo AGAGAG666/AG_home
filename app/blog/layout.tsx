@@ -1,12 +1,20 @@
 'use client'
 import { ScrollProgress } from '@/components/ui/scroll-progress'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { CONFIG } from '@/app/toggle/config'
 
 export default function LayoutBlogPost({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const pathname = usePathname()
+  const isBlogIndex = pathname === '/blog'
+  const isDetailPage = pathname.startsWith('/blog/') && !isBlogIndex
+  // 详情页返回目标：单独页模式→/blog，浮动模式→/
+  const backLink = isDetailPage && CONFIG.blogDisplayMode === 'page' ? '/blog' : '/'
+
   return (
     <>
       <div className="pointer-events-none fixed left-0 top-0 z-10 h-12 w-full bg-gray-100 to-transparent backdrop-blur-xl [-webkit-mask-image:linear-gradient(to_bottom,black,transparent)] dark:bg-zinc-950" />
@@ -17,12 +25,14 @@ export default function LayoutBlogPost({
         }}
       />
 
-      {/* 返回键使用首页相同的按钮样式 */}
-<div className="absolute left-4 top-32 md:top-40 animate-fade-in-up-delayed">
+      <div className={`absolute animate-fade-in-up-delayed ${
+  isBlogIndex
+    ? 'right-4 top-24 md:right-8 md:top-28'
+    : 'left-4 top-32 md:top-40'
+}`}>
   <Link
-    href="/"
+    href={backLink}
     onClick={() => {
-      // 设置标记,表示从博客页面返回主页
       sessionStorage.setItem('skipLoadingAnimation', 'true');
     }}
     className="group relative inline-flex shrink-0 items-center gap-[1px] rounded-full bg-zinc-100 px-2 md:px-2.5 py-1 text-xs md:text-sm text-black transition-colors duration-200 hover:bg-zinc-950 hover:text-zinc-50 active:bg-zinc-950 active:text-zinc-50 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:active:bg-zinc-700"
@@ -35,7 +45,7 @@ export default function LayoutBlogPost({
 </div>
 
       {/* 添加响应式内边距，手机端留白，电脑端无额外内边距 */}
-      <main className="prose prose-gray mt-24 pb-8 px-4 md:px-0 prose-h4:prose-base dark:prose-invert prose-h1:text-xl prose-h1:font-medium prose-h2:mt-12 prose-h2:scroll-m-20 prose-h2:text-lg prose-h2:font-medium prose-h3:text-base prose-h3:font-medium prose-h4:text-base prose-h4:font-medium prose-h5:text-base prose-h5:font-medium prose-h6:text-base prose-h6:font-medium prose-strong:font-medium">
+      <main className="prose prose-gray mt-16 pb-8 px-4 md:px-0 prose-h4:prose-base dark:prose-invert prose-h1:text-xl prose-h1:font-medium prose-h2:mt-12 prose-h2:scroll-m-20 prose-h2:text-lg prose-h2:font-medium prose-h3:text-base prose-h3:font-medium prose-h4:text-base prose-h4:font-medium prose-h5:text-base prose-h5:font-medium prose-h6:text-base prose-h6:font-medium prose-strong:font-medium prose-code:rounded prose-code:bg-zinc-200 prose-code:px-1.5 prose-code:py-0.5 prose-code:text-pink-600 prose-code:dark:bg-zinc-700 prose-code:dark:text-pink-300 prose-code:before:content-none prose-code:after:content-none">
         {children}
       </main>
     </>
